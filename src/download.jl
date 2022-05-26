@@ -12,17 +12,20 @@ const REPO_TYPE = Union{REPO, Nothing}
 is_valid_repo(::REPO_TYPE) = true
 is_valid_repo(_) = false
 
+repo_from_string(t::REPO_TYPE) = t
+repo_from_string(s::AbstractString) = s == "datasets" ?
+    DATASET_REPO() : "spaces" ? SPACE_REPO() : error("Unknown repo type: $s")
+
 repo_string(::DATASET_REPO) = "datasets"
 repo_string(::SPACE_REPO) = "spaces"
 
 build_repo(repo_type::REPO, repo_id) = joinpath(repo_string(repo_type), repo_id)
 build_repo(::Nothing, repo_id) = repo_id
 
-
 """
-    HuggingFaceURL(repo_id, [subfolder], filename,
-                   repo_type::REPO_TYPE = nothing,
-                   revision::AbstractString = "main")
+    HuggingFaceURL(repo_id, [subfolder], filename;
+                   repo_type = nothing,
+                   revision = "main")
 
 Construct the real url with the inputs.
 """
@@ -31,13 +34,13 @@ struct HuggingFaceURL
     filename  :: String
     repo_type :: REPO_TYPE
     revision  :: String
+end
 
-    function HuggingFaceURL(repo_id, filename,
-                            repo_type::REPO_TYPE = nothing,
-                            revision::AbstractString = "main")
-        is_valid_repo(repo_type) || error("Invalid repo type: $repo_type")
-        return new(repo_id, filename, repo_type, revision)
-    end
+function HuggingFaceURL(repo_id, filename,
+                        repo_type::REPO_TYPE = nothing,
+                        revision::AbstractString = "main")
+    is_valid_repo(repo_type) || error("Invalid repo type: $repo_type")
+    return HuggingFaceURL(repo_id, filename, repo_type, revision)
 end
 
 HuggingFaceURL(
@@ -45,8 +48,14 @@ HuggingFaceURL(
     repo_type::REPO_TYPE = nothing,
     revision::AbstractString = "main"
 ) =
-    HuggingFaceURL(repo_id, joinpath(subfoler, filename), repo_type, revision)
+    HuggingFaceURL(repo_id, joinpath(subfolder, filename), repo_type, revision)
 
+HuggingFaceURL(
+    repo_id, path...;
+    repo_type = nothing,
+    revision = "main"
+) =
+    HuggingFaceURL(repo_id, path..., repo_from_string(repo_type), revision)
 
 repo(hgfurl::HuggingFaceURL) = build_repo(hgfurl.repo_type, hgfurl.repo_id)
 id(hgfurl::HuggingFaceURL) = joinpath(repo(hgfurl), hgfurl.filename)
@@ -54,17 +63,17 @@ id(hgfurl::HuggingFaceURL) = joinpath(repo(hgfurl), hgfurl.filename)
 Base.string(hgfurl::HuggingFaceURL) = hgf_url_template(repo(hgfurl), hgfurl.revision, hgfurl.filename)
 Base.show(io::IO, hgfurl::HuggingFaceURL) = Base.print(io, "HuggingFaceURL(", string(hgfurl), ')')
 
+get_etag(hgfurl::HuggingFaceURL; kws...) = get_etag(string(hgfurl); kws...)
 function get_etag(
     url;
     timeout :: Real = 10,
     headers :: Union{AbstractVector, AbstractDict} = Pair{String,String}[],
 )
-    r = request(url; method="HEAD", timeout, headers)
-    if r.status < 400
-        for (key, val) in r.headers
-            if key == "etag" || key == "x-linked-etag"
-                return val
-            end
+    r = HTTP.request("HEAD", url, headers; redirect = false, connect_timeout = timeout)
+    for (key, val) in r.headers
+        key = lowercase(key)
+        if key == "etag" || key == "x-linked-etag"
+            return strip(val, '"')
         end
     end
     error("Distant resource does not have an ETag, we won't be able to reliably ensure reproducibility.")
@@ -75,15 +84,13 @@ function url_to_filename(url, etag=nothing)
     buf = IOBuffer(maxsize=150)
     bytes2hex(buf, sha256(url))
     isnothing(etag) || (write(buf, '.'); bytes2hex(buf, sha256(etag)))
-    # endswith(url, ".h5") && write(buf, ".h5")
-    # endswith(url, ".py") && wrtie(buf, ".py")
     return String(take!(buf))
 end
 
 hgf_download(
     hgfurl :: HuggingFaceURL, dest :: AbstractString;
     headers :: Union{AbstractVector, AbstractDict} = Pair{String,String}[],
-    verbose :: Bool = false, io :: IO = Pkg.DEFAULT_IO[]
+    verbose :: Bool = false, io :: IO = Pkg.stdout_f()
 ) =
     hgf_download(string(hgfurl), dest; name = id(hgfurl), headers, verbose, io)
 
@@ -92,7 +99,7 @@ function hgf_download(
     name :: AbstractString = "",
     headers :: Union{AbstractVector, AbstractDict} = Pair{String,String}[],
     verbose :: Bool = false,
-    io :: IO = Pkg.DEFAULT_IO[],
+    io :: IO = Pkg.stdout_f(),
 )
     do_fancy = verbose && Pkg.can_fancyprint(io)
     progress =  if do_fancy
@@ -176,11 +183,29 @@ function remove_cache(hgfurl::HuggingFaceURL; now=false)
 end
 
 """
+    remove_cache(; now=false)
+
+Remove all cached files. If `now` is set to `true`, cache file will be deleted immediately,
+ otherwise waiting `OhMyArtifacts` to do the garbage collection.
+"""
+function remove_cache(; now=false)
+    artifacts = OhMyArtifacts.load_my_artifacts_toml(hgf_artifacts())
+
+    for (key, val) in artifacts
+        @my_artifact :unbind key
+    end
+
+    if now
+        OhMyArtifacts.find_orphanages(; collect_delay = Dates.Hour(0))
+    end
+end
+
+"""
     hf_hub_download(
         repo_id :: AbstractString,
         filename :: AbstractString;
-        repo_type :: REPO_TYPE = nothing,
-        revision :: AbstractString = "main",
+        repo_type = nothing,
+        revision = "main",
         auth_token :: Union{AbstractString, Nothing} = get_token(),
         local_files_only :: Bool  = false,
     )
@@ -190,11 +215,11 @@ Construct [`HuggingFaceURL`](@ref) and do [`cached_download`](@ref).
 function hf_hub_download(
     repo_id :: AbstractString,
     filename :: AbstractString;
-    repo_type :: REPO_TYPE = nothing,
-    revision :: AbstractString = "main",
+    repo_type = nothing,
+    revision = "main",
     auth_token :: Union{AbstractString, Nothing} = get_token(),
     local_files_only :: Bool  = false,
 )
-    hgfurl = HuggingFaceURL(repo_id, filename, repo_type, revision)
+    hgfurl = HuggingFaceURL(repo_id, filename; repo_type, revision)
     return cached_download(hgfurl; auth_token, local_files_only)
 end

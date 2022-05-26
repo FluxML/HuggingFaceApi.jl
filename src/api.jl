@@ -55,7 +55,7 @@ end
 """
     logout()
 
-Login from huggingface hub and remove all authentication cache.
+Logout from huggingface hub and remove all authentication cache.
 """
 function logout(token = get_token())
     ensure_token(token)

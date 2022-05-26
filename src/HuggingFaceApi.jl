@@ -8,16 +8,17 @@ import Dates
 
 using OhMyArtifacts
 
+using HTTP
 using JSON3
 using StructTypes
 
 const my_artifacts = Ref{String}()
 
 const ENDPOINT = Ref("https://huggingface.co")
-const token_path = Ref(expanduser("~/.huggingface/token"))
+const token_path = Ref{String}()
 
-const PYTORCH_WEIGHTS_NAME = Ref("pytorch_model.bin")
-const CONFIG_NAME = Ref("config.json")
+const PYTORCH_WEIGHTS_NAME = "pytorch_model.bin"
+const CONFIG_NAME = "config.json"
 
 function hgf_dir()
     return dirname(hgf_artifacts())
@@ -36,9 +37,11 @@ function env_is_true(key)
 end
 
 function __init__()
-    global ENDPOINT, my_artifacts
+    global ENDPOINT, my_artifacts, token_path
     # my artifacts
     my_artifacts[] = @my_artifacts_toml!()
+
+    token_path[] = expanduser("~/.huggingface/token")
 
     # set 🤗 endpoint
     env_is_true("HUGGINGFACE_CO_STAGING") && (ENDPOINT[] = "https://moon-staging.huggingface.co")
@@ -69,7 +72,5 @@ export hf_hub_download, HuggingFaceURL, cached_download
 include("auth.jl")
 include("download.jl")
 include("api.jl")
-#include("datasets.jl")
-
 
 end
