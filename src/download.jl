@@ -9,6 +9,8 @@ struct SPACE_REPO <: REPO end
 
 const REPO_TYPE = Union{REPO, Nothing}
 
+joinurlpath(args...) = join(Iterators.map(Base.Fix2(strip, '/'), args), '/')
+
 is_valid_repo(::REPO_TYPE) = true
 is_valid_repo(_) = false
 
@@ -19,7 +21,7 @@ repo_from_string(s::AbstractString) = s == "datasets" ?
 repo_string(::DATASET_REPO) = "datasets"
 repo_string(::SPACE_REPO) = "spaces"
 
-build_repo(repo_type::REPO, repo_id) = joinpath(repo_string(repo_type), repo_id)
+build_repo(repo_type::REPO, repo_id) = joinurlpath(repo_string(repo_type), repo_id)
 build_repo(::Nothing, repo_id) = repo_id
 
 """
@@ -48,7 +50,7 @@ HuggingFaceURL(
     repo_type::REPO_TYPE = nothing,
     revision::AbstractString = "main"
 ) =
-    HuggingFaceURL(repo_id, joinpath(subfolder, filename), repo_type, revision)
+    HuggingFaceURL(repo_id, joinurlpath(subfolder, filename), repo_type, revision)
 
 HuggingFaceURL(
     repo_id, path...;
@@ -58,7 +60,7 @@ HuggingFaceURL(
     HuggingFaceURL(repo_id, path..., repo_from_string(repo_type), revision)
 
 repo(hgfurl::HuggingFaceURL) = build_repo(hgfurl.repo_type, hgfurl.repo_id)
-id(hgfurl::HuggingFaceURL) = joinpath(repo(hgfurl), hgfurl.filename)
+id(hgfurl::HuggingFaceURL) = joinurlpath(repo(hgfurl), hgfurl.filename)
 
 Base.string(hgfurl::HuggingFaceURL) = hgf_url_template(repo(hgfurl), hgfurl.revision, hgfurl.filename)
 Base.show(io::IO, hgfurl::HuggingFaceURL) = Base.print(io, "HuggingFaceURL(", string(hgfurl), ')')
