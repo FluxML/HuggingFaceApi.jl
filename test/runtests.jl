@@ -55,5 +55,5 @@ const DATASET_SAMPLE_PY_FILE = "custom_squad.py"
         @test_nowarn cached_download(url)
         @test_nowarn HuggingFaceApi.remove_cache(url)
     end
-    @test_warn r"\[ Info: 4 MyArtifacts deleted" OhMyArtifacts.find_orphanages(; collect_delay=Hour(0))
+    @test_logs (:info, r"4 MyArtifacts deleted") OhMyArtifacts.find_orphanages(; collect_delay=Hour(0))
 end
