@@ -6,11 +6,11 @@ DocMeta.setdocmeta!(HuggingFaceApi, :DocTestSetup, :(using HuggingFaceApi); recu
 makedocs(;
     modules=[HuggingFaceApi],
     authors="chengchingwen <adgjl5645@hotmail.com> and contributors",
-    repo="https://github.com/chengchingwen/HuggingFaceApi.jl/blob/{commit}{path}#{line}",
+    repo="https://github.com/FluxML/HuggingFaceApi.jl/blob/{commit}{path}#{line}",
     sitename="HuggingFaceApi.jl",
     format=Documenter.HTML(;
         prettyurls=get(ENV, "CI", "false") == "true",
-        canonical="https://chengchingwen.github.io/HuggingFaceApi.jl",
+        canonical="https://fluxml.ai/HuggingFaceApi.jl",
         assets=String[],
     ),
     pages=[
@@ -19,5 +19,5 @@ makedocs(;
 )
 
 deploydocs(;
-    repo="github.com/chengchingwen/HuggingFaceApi.jl",
+    repo="github.com/FluxML/HuggingFaceApi.jl",
 )

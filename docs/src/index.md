@@ -4,7 +4,7 @@ CurrentModule = HuggingFaceApi
 
 # HuggingFaceApi
 
-Documentation for [HuggingFaceApi](https://github.com/chengchingwen/HuggingFaceApi.jl).
+Documentation for [HuggingFaceApi](https://github.com/FluxML/HuggingFaceApi.jl).
 
 ```@index
 ```
