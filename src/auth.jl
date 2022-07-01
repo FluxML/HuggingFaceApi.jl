@@ -81,11 +81,21 @@ auth_header!(headers, ::Nothing) = headers
 ensure_token(::Nothing) = error("No token provided and saved token not found")
 ensure_token(token) = token
 
+"""
+    get_token()
+
+Get the token stored on disk.
+"""
 function get_token()
     path = get_token_path()
     return isfile(path) ? read(path, String) : nothing
 end
 
+"""
+    save_token(token)
+
+Write token to the disk for future use.
+"""
 function save_token(token)
     path = get_token_path()
     mkpath(dirname(path))
@@ -93,4 +103,9 @@ function save_token(token)
     return nothing
 end
 
+"""
+    delete_token()
+
+Remove token from the disk.
+"""
 delete_token() = rm(get_token_path(); force=true)
