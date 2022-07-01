@@ -36,13 +36,13 @@ struct HuggingFaceURL
     filename  :: String
     repo_type :: REPO_TYPE
     revision  :: String
-end
 
-function HuggingFaceURL(repo_id, filename,
-                        repo_type::REPO_TYPE = nothing,
-                        revision::AbstractString = "main")
-    is_valid_repo(repo_type) || error("Invalid repo type: $repo_type")
-    return HuggingFaceURL(repo_id, filename, repo_type, revision)
+    function HuggingFaceURL(repo_id, filename,
+                            repo_type::REPO_TYPE = nothing,
+                            revision::AbstractString = "main")
+        is_valid_repo(repo_type) || error("Invalid repo type: $repo_type")
+        return new(repo_id, filename, repo_type, revision)
+    end
 end
 
 HuggingFaceURL(

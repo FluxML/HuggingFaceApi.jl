@@ -29,6 +29,7 @@ const DATASET_REVISION_ID_ONE_SPECIFIC_COMMIT = "e25d55a1c4933f987c46cc75d8ffadd
 const DATASET_SAMPLE_PY_FILE = "custom_squad.py"
 
 @testset "HuggingFaceApi.jl" begin
+    @test HuggingFaceURL(split("a/b/c",'/')...) == HuggingFaceURL("a", "b", "c")
     @test get_etag(HuggingFaceURL(DUMMY_MODEL_ID, CONFIG_NAME)) == DUMMY_MODEL_ID_PINNED_SHA1
 
     url_pinned_sha1 = HuggingFaceURL(DUMMY_MODEL_ID, CONFIG_NAME;
