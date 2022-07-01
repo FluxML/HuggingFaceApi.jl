@@ -81,18 +81,18 @@ end
     end
 
     @test length(_api.list_models()) > 100
-    m_google = _api.list_models(; author = "google")
+    m_google = _api.list_models(; author = "google", full=true)
     @test length(m_google) > 10
     @test all(m_google) do m
-        "google" in m.author
+        "google" == m.author
     end
     m_bert = _api.list_models(; search = "bert")
     @test length(m_bert) > 10
     @test all(m_bert) do m
-        "bert" in lowercase(m.modelId)
+        occursin("bert", lowercase(m.modelId))
     end
     m_complex = _api.list_models(; filter=("bert", "jax"), sort="lastModified", direction=-1, limit=10)
-    @test 10 > length(m_complex) > 1
+    @test 10 >= length(m_complex) > 1
     @test all(m_complex) do m
         issubset(("bert", "jax"), m.tags)
     end
@@ -119,6 +119,6 @@ end
     @test length(_api.list_datasets()) > 100
     d = _api.list_datasets(; author="huggingface", search = "DataMeasurementsFiles")
     @test length(d) == 1
-    @test "huggingface" in d.author
-    @test "DataMeasurementsFiles" in d.id
+    @test "huggingface" == d[1].author
+    @test occursin("DataMeasurementsFiles", d[1].id)
 end
