@@ -14,7 +14,9 @@ using StructTypes
 
 const my_artifacts = Ref{String}()
 
-const ENDPOINT = Ref("https://huggingface.co")
+
+const DEFAULT_ENDPOINT = "https://huggingface.co"
+const ENDPOINT = Ref(DEFAULT_ENDPOINT)
 const token_path = Ref{String}()
 
 const PYTORCH_WEIGHTS_NAME = "pytorch_model.bin"
@@ -70,6 +72,7 @@ end
 export hf_hub_download, HuggingFaceURL, cached_download
 
 include("auth.jl")
+include("utils.jl")
 include("download.jl")
 include("api.jl")
 

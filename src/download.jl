@@ -72,12 +72,8 @@ function get_etag(
     headers :: Union{AbstractVector, AbstractDict} = Pair{String,String}[],
 )
     r = HTTP.request("HEAD", url, headers; redirect = false, connect_timeout = timeout)
-    for (key, val) in r.headers
-        key = lowercase(key)
-        if key == "etag" || key == "x-linked-etag"
-            return strip(val, '"')
-        end
-    end
+    etag = get_header(r, "etag", "x-linked-etag")
+    isnothing(etag) || return strip(etag, '"')
     error("Distant resource does not have an ETag, we won't be able to reliably ensure reproducibility.")
 end
 

@@ -66,3 +66,59 @@ const DATASET_SAMPLE_PY_FILE = "custom_squad.py"
     end
     @test_logs (:info, r"4 MyArtifacts deleted") OhMyArtifacts.find_orphanages(; collect_delay=Hour(0))
 end
+
+@testset "Api endpoint" begin
+    _api = HuggingFaceApi
+    model_tags = _api.get_model_tags()
+    for kind in ("library", "language", "license", "dataset", "pipeline_tag")
+        @test !isempty(get(model_tags, kind))
+    end
+
+    dataset_tags = _api.get_dataset_tags()
+    for kind in ("languages", "multilinguality", "language_creators", "task_categories",
+                 "size_categories", "benchmark", "task_ids", "licenses")
+        @test !isempty(get(dataset_tags, kind))
+    end
+
+    @test length(_api.list_models()) > 100
+    m_google = _api.list_models(; author = "google")
+    @test length(m_google) > 10
+    @test all(m_google) do m
+        "google" in m.author
+    end
+    m_bert = _api.list_models(; search = "bert")
+    @test length(m_bert) > 10
+    @test all(m_bert) do m
+        "bert" in lowercase(m.modelId)
+    end
+    m_complex = _api.list_models(; filter=("bert", "jax"), sort="lastModified", direction=-1, limit=10)
+    @test 10 > length(m_complex) > 1
+    @test all(m_complex) do m
+        issubset(("bert", "jax"), m.tags)
+    end
+    m_cfg = _api.list_models(; filter="adapter-transformers", config=true, limit=20)
+    @test (count(m_cfg) do m
+             haskey(m, :config)
+           end) > 0
+
+    @test _api.model_info(DUMMY_MODEL_ID).sha != DUMMY_MODEL_ID_REVISION_ONE_SPECIFIC_COMMIT
+    mi = _api.model_info(DUMMY_MODEL_ID, revision=DUMMY_MODEL_ID_REVISION_ONE_SPECIFIC_COMMIT)
+    @test mi.sha == DUMMY_MODEL_ID_REVISION_ONE_SPECIFIC_COMMIT
+    @test mi.securityStatus == Dict(:containsInfected=>false)
+    @test _api.list_repo_files(DUMMY_MODEL_ID) == [
+        ".gitattributes",
+        "README.md",
+        "config.json",
+        "flax_model.msgpack",
+        "merges.txt",
+        "pytorch_model.bin",
+        "tf_model.h5",
+        "vocab.json",
+    ]
+
+    @test length(_api.list_datasets()) > 100
+    d = _api.list_datasets(; author="huggingface", search = "DataMeasurementsFiles")
+    @test length(d) == 1
+    @test "huggingface" in d.author
+    @test "DataMeasurementsFiles" in d.id
+end
