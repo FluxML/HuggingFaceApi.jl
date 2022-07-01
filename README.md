@@ -60,3 +60,41 @@ julia> HuggingFaceApi.logout()
 
 ```
 
+## Search the hub
+
+```
+julia> HuggingFaceApi.list_models(; search = "japanese", filter = ("pytorch", "text-classification"), full=false, limit=5)
+
+5-element JSON3.Array{JSON3.Object, Base.CodeUnits{UInt8, String}, Vector{UInt64}}:
+ {
+             "id": "daigo/bert-base-japanese-sentiment",
+        "private": false,
+   "pipeline_tag": "text-classification",
+        "modelId": "daigo/bert-base-japanese-sentiment"
+}
+ {
+             "id": "abhishek/autonlp-japanese-sentiment-59363",
+        "private": false,
+   "pipeline_tag": "text-classification",
+        "modelId": "abhishek/autonlp-japanese-sentiment-59363"
+}
+ {
+             "id": "laboro-ai/distilbert-base-japanese-finetuned-livedoor",
+        "private": false,
+   "pipeline_tag": "text-classification",
+        "modelId": "laboro-ai/distilbert-base-japanese-finetuned-livedoor"
+}
+ {
+             "id": "ptaszynski/yacis-electra-small-japanese-cyberbullying",
+        "private": false,
+   "pipeline_tag": "text-classification",
+        "modelId": "ptaszynski/yacis-electra-small-japanese-cyberbullying"
+}
+ {
+             "id": "lewtun/bert-base-japanese-char-v2-finetuned-amazon-jap",
+        "private": false,
+   "pipeline_tag": "text-classification",
+        "modelId": "lewtun/bert-base-japanese-char-v2-finetuned-amazon-jap"
+}
+
+```
