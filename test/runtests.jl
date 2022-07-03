@@ -1,18 +1,9 @@
 using HuggingFaceApi, Pkg
 using OhMyArtifacts
-using HTTP
 using Dates
 using Test, Pkg
 
 using HuggingFaceApi: CONFIG_NAME, get_etag
-
-pkgversion(m::Module) = VersionNumber(Pkg.TOML.parsefile(joinpath(dirname(string(first(methods(m.eval)).file)), "..", "Project.toml"))["version"])
-
-const StatusError = if pkgversion(HTTP) < v"1"
-    HTTP.ExceptionRequest.StatusError
-else
-    HTTP.Exceptions.StatusError
-end
 
 # https://github.com/huggingface/huggingface_hub/blob/f124f8be1e02ca9fbcda7a849e70271299ad5738/tests/testing_utils.py
 const DUMMY_MODEL_ID = "julien-c/dummy-unknown"
@@ -39,14 +30,14 @@ const DATASET_SAMPLE_PY_FILE = "custom_squad.py"
     url_pinned_sha256 = HuggingFaceURL(DUMMY_MODEL_ID, HuggingFaceApi.PYTORCH_WEIGHTS_NAME)
     @test get_etag(url_pinned_sha256) == DUMMY_MODEL_ID_PINNED_SHA256
 
-    @test_throws StatusError cached_download(HuggingFaceURL(DUMMY_MODEL_ID, "missing.bin"))
+    @test_throws ErrorException("request status HTTP/2 404: EntryNotFound") cached_download(HuggingFaceURL(DUMMY_MODEL_ID, "missing.bin"))
 
     url_invalid_revi = HuggingFaceURL(DUMMY_MODEL_ID, CONFIG_NAME;
                                       revision = DUMMY_MODEL_ID_REVISION_INVALID)
-    @test_throws StatusError cached_download(url_invalid_revi)
+    @test_throws ErrorException("request status HTTP/2 404: RevisionNotFound") cached_download(url_invalid_revi)
 
     url_invalid_repo = HuggingFaceURL("bert-base", "pytorch_model.bin")
-    @test_throws StatusError cached_download(url_invalid_repo)
+    @test_throws ErrorException("request status HTTP/2 401: RepoNotFound") cached_download(url_invalid_repo)
 
     url1 = HuggingFaceURL(DATASET_ID, DATASET_SAMPLE_PY_FILE;
                           repo_type="datasets", revision=DATASET_REVISION_ID_ONE_SPECIFIC_COMMIT)

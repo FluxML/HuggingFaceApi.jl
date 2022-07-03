@@ -87,7 +87,7 @@ function _info(type, repo_id, revision, token = get_token())
 
     resp, body = request_body(url; method = "GET", headers = auth_header(token))
     if resp.status >= 400
-        status_error(resp, get_header(resp, "x-error-code"))
+        status_error_w_ecode(resp)
     else
         return JSON3.read(body)
     end

@@ -27,3 +27,23 @@ function get_header(resp, _keys...)
     end
     return nothing
 end
+
+function status_error_w_ecode(resp)
+    error_code = get_header(resp, "x-error-code")
+    if isnothing(error_code) && resp.status == 401
+        error_code = "RepoNotFound"
+    end
+    status_error(resp, error_code)
+end
+
+function _set_easy_noredir(easy, info)
+    Downloads.Curl.setopt(easy, Downloads.Curl.CURLOPT_MAXREDIRS, 0)
+    Downloads.Curl.setopt(easy, Downloads.Curl.CURLOPT_FOLLOWLOCATION, false)
+end
+
+function request_noredir(url; kwargs...)
+    downloader = Downloads.Downloader()
+    downloader.easy_hook = _set_easy_noredir
+    resp = request(url; downloader = downloader, kwargs...)
+    return resp
+end

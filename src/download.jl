@@ -71,8 +71,9 @@ function get_etag(
     timeout :: Real = 10,
     headers :: Union{AbstractVector, AbstractDict} = Pair{String,String}[],
 )
-    r = HTTP.request("HEAD", url, headers; redirect = false, connect_timeout = timeout)
-    etag = get_header(r, "etag", "x-linked-etag")
+    resp = request_noredir(url; method="HEAD", timeout, headers)
+    resp.status >= 400 && status_error_w_ecode(resp)
+    etag = get_header(resp, "etag", "x-linked-etag")
     isnothing(etag) || return strip(etag, '"')
     error("Distant resource does not have an ETag, we won't be able to reliably ensure reproducibility.")
 end

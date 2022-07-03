@@ -8,9 +8,7 @@ import Dates
 
 using OhMyArtifacts
 
-using HTTP
 using JSON3
-using StructTypes
 
 const my_artifacts = Ref{String}()
 
