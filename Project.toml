@@ -1,7 +1,7 @@
 name = "HuggingFaceApi"
 uuid = "3cc741c3-0c9d-4fbe-84fa-cdec264173de"
 authors = ["chengchingwen <adgjl5645@hotmail.com> and contributors"]
-version = "0.0.4"
+version = "0.0.5"
 
 [deps]
 Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
