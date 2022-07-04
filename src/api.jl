@@ -8,7 +8,7 @@ function request_with_id_error(api, headers = nothing)
 
     if resp.status >= 400
         request_id = get_header(resp, "x-request-id")
-        log = isnothing(idx) ? nothing : "request id = $request_id"
+        log = isnothing(request_id) ? nothing : "request id = $request_id"
         status_error(resp, log)
     else
         return JSON3.read(body)
