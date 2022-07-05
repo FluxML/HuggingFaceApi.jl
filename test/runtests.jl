@@ -44,14 +44,29 @@ const ENDPOINT_STAGING = "https://hub-ci.huggingface.co"
     url_pinned_sha256 = HuggingFaceURL(DUMMY_MODEL_ID, HuggingFaceApi.PYTORCH_WEIGHTS_NAME)
     @test get_etag(url_pinned_sha256) == DUMMY_MODEL_ID_PINNED_SHA256
 
-    @test_throws ErrorException("request status HTTP/2 404: EntryNotFound") cached_download(HuggingFaceURL(DUMMY_MODEL_ID, "missing.bin"))
+    missing_e = try
+        cached_download(HuggingFaceURL(DUMMY_MODEL_ID, "missing.bin"))
+    catch e
+        e
+    end
+    @test occursin("EntryNotFound", missing_e.msg)
 
     url_invalid_revi = HuggingFaceURL(DUMMY_MODEL_ID, CONFIG_NAME;
                                       revision = DUMMY_MODEL_ID_REVISION_INVALID)
-    @test_throws ErrorException("request status HTTP/2 404: RevisionNotFound") cached_download(url_invalid_revi)
+    invalid_e = try
+        cached_download(url_invalid_revi)
+    catch e
+        e
+    end
+    occursin("RevisionNotFound", invalid_e.msg)
 
     url_invalid_repo = HuggingFaceURL("bert-base", "pytorch_model.bin")
-    @test_throws ErrorException("request status HTTP/2 401: RepoNotFound") cached_download(url_invalid_repo)
+    repo_e = try
+        cached_download(url_invalid_repo)
+    catch e
+        e
+    end
+    @test occursin("RepoNotFound", repo_e.msg)
 
     url1 = HuggingFaceURL(DATASET_ID, DATASET_SAMPLE_PY_FILE;
                           repo_type="datasets", revision=DATASET_REVISION_ID_ONE_SPECIFIC_COMMIT)
