@@ -197,10 +197,10 @@ Get information from all datasets in the Hub. You can specify additional paramet
 function list_datasets(token = get_token();
                        search = nothing, author = nothing, filter = nothing,
                        sort = nothing, direction = nothing, limit = nothing,
-                       full::Bool = false, cardData::Bool = false)
+                       cardData::Bool = false, full::Bool = cardData)
 
     filter = _list_param(filter)
-    _list("datasets", token; search, author, filter, sort, direction, limit, full, cardData)
+    _list("datasets", token; search, author, filter, sort, direction, limit, full)
 end
 
 """
