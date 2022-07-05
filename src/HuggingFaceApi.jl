@@ -62,6 +62,23 @@ function get_endpoint()
     return ENDPOINT[]
 end
 
+function set_endpoint(endpoint)
+    global ENDPOINT
+    ENDPOINT[] = endpoint
+    return ENDPOINT[]
+end
+
+function with_endpoint(f, endpoint)
+    global ENDPOINT
+    old_endpoint = ENDPOINT[]
+    try
+        ENDPOINT[] = endpoint
+        return f()
+    finally
+        ENDPOINT[] = old_endpoint
+    end
+end
+
 function get_token_path()
     global token_path
     return abspath(token_path[])
