@@ -62,7 +62,7 @@ julia> HuggingFaceApi.logout()
 
 ## Search the hub
 
-```
+```julia
 julia> HuggingFaceApi.list_models(; search = "japanese", filter = ("pytorch", "text-classification"), full=false, limit=5)
 
 5-element JSON3.Array{JSON3.Object, Base.CodeUnits{UInt8, String}, Vector{UInt64}}:
