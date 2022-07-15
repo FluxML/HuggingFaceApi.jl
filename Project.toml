@@ -14,7 +14,7 @@ SHA = "ea8e919c-243c-51af-8825-aaa63cd721ce"
 
 [compat]
 JSON3 = "1.9"
-OhMyArtifacts = "0.3"
+OhMyArtifacts = "0.3.1"
 julia = "1.6"
 
 [extras]

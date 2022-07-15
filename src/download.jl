@@ -151,8 +151,16 @@ function cached_download(
     # no local file
     local_files_only && error("no cached file found and `local_files_only` is set to true.")
 
+    # metadata
+    metadata = Dict{String, Any}(
+        "id" => hgfurl.repo_id,
+        "file" => hgfurl.filename,
+        "type" => isnothing(hgfurl.repo_type) ? "model" : repo_string(hgfurl.repo_type),
+        "revision" => hgfurl.revision,
+    )
+
     # download and bind
-    hash = @my_artifact :download name hgfurl hgf_download headers verbose=true
+    hash = @my_artifact :download name hgfurl hgf_download headers verbose=true bind_metadata=metadata
 
     # for future local_files_only, bind name without etag
     @my_artifact :bind split(name, '.')[1] hash force=true
@@ -161,7 +169,26 @@ function cached_download(
 end
 
 """
-    remove_cache(hgfurl::HuggingFaceURL; now=false)
+    list_cache()
+
+Get the list of all the cache.
+"""
+function list_cache(artifact_list = load_my_artifacts_toml(hgf_artifacts()))
+    cache_list = Dict{String, Any}()
+    for (name, data) in artifact_list
+        data["isdir"] && continue
+        haskey(data, "meta") || continue
+        meta = data["meta"]
+        t_cache_list = get!(()->Dict{String,Any}(), cache_list, meta["type"])
+        repo_list = get!(()->Dict{String,Any}(), t_cache_list, meta["id"])
+        revision_list = get!(()->String[], repo_list, meta["revision"])
+        push!(revision_list, meta["file"])
+    end
+    return cache_list
+end
+
+"""
+    remove_cache(hgfurl::HuggingFaceURL; now = false)
 
 Remove files link to the given url. If `now` is set to `true`, cache file will be deleted immediately,
  otherwise waiting `OhMyArtifacts` to do the garbage collection.
@@ -170,11 +197,47 @@ function remove_cache(hgfurl::HuggingFaceURL; now=false)
     name = url_to_filename(hgfurl)
     artifacts = OhMyArtifacts.load_my_artifacts_toml(hgf_artifacts())
 
+    remove_list = String[]
     for (key, val) in artifacts
-        if startswith(key, name)
-            @my_artifact :unbind key
+        startswith(key, name) && push!(remove_list, key)
+    end
+
+    @my_artifact :unbind remove_list
+
+    if now
+        OhMyArtifacts.find_orphanages(; collect_delay = Dates.Hour(0))
+    end
+end
+
+"""
+    remove_cache(repo_id::AbstractString; repo_type = nothing, revision = "main", now = false)
+
+Remove all cached files of a given repo. If `now` is set to `true`, cache file will be deleted immediately,
+ otherwise waiting `OhMyArtifacts` to do the garbage collection.
+"""
+function remove_cache(repo_id::AbstractString; repo_type = nothing, revision = "main", now = false)
+    artifacts = OhMyArtifacts.load_my_artifacts_toml(hgf_artifacts())
+    cache_list = list_cache(artifacts)
+    type = repo_from_string(repo_type)
+    type = isnothing(type) ? "model" : type
+
+    !haskey(cache_list, type) && return
+    repos = cache_list[type]
+    !haskey(repos, repo_id) && return
+    repo = repos[repo_id]
+    !haskey(repo, revision) && return
+    files = repo[revision]
+    remove_list = String[]
+    for file in files
+        hgfurl = HuggingFaceURL(repo_id, file, repo_type, revision)
+        name = url_to_filename(hgfurl)
+
+        for (key, val) in artifacts
+            startswith(key, name) && push!(remove_list, key)
         end
     end
+
+    @my_artifact :unbind remove_list
 
     if now
         OhMyArtifacts.find_orphanages(; collect_delay = Dates.Hour(0))
@@ -190,9 +253,7 @@ Remove all cached files. If `now` is set to `true`, cache file will be deleted i
 function remove_cache(; now=false)
     artifacts = OhMyArtifacts.load_my_artifacts_toml(hgf_artifacts())
 
-    for (key, val) in artifacts
-        @my_artifact :unbind key
-    end
+    @my_artifact :unbind keys(artifacts)
 
     if now
         OhMyArtifacts.find_orphanages(; collect_delay = Dates.Hour(0))
