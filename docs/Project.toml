@@ -1,3 +1,9 @@
 [deps]
 Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
 HuggingFaceApi = "3cc741c3-0c9d-4fbe-84fa-cdec264173de"
+
+[sources]
+HuggingFaceApi = {path = "/Users/carlo/.julia/dev/HuggingFaceApi"}
+
+[compat]
+Documenter = "1"

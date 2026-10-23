@@ -1,46 +1,37 @@
-function request_with_id_error(api, headers = nothing)
-    endpoint = get_endpoint()
-    resp, body = if isnothing(headers)
-        request_body("$(endpoint)/api/$api"; method = "GET")
-    else
-        request_body("$(endpoint)/api/$api"; method = "GET", headers = headers)
-    end
+function request_with_id_error(api, headers = Pair{String,String}[])
+    resp, body = request_body("$(get_endpoint())/api/$api"; method = "GET", headers)
+    resp.status >= 400 && id_error(resp)
+    return JSON.parse(body)
+end
 
-    if resp.status >= 400
-        request_id = get_header(resp, "x-request-id")
-        log = isnothing(request_id) ? nothing : "request id = $request_id"
-        status_error(resp, log)
-    else
-        return JSON3.read(body)
-    end
+function id_error(resp)
+    request_id = get_header(resp, "x-request-id")
+    log = isnothing(request_id) ? nothing : "request id = $request_id"
+    status_error(resp, log)
 end
 
 # HfApi
 
 """
-    login(user::AbstractString = readline())
+    login(token = <prompt>)
 
-Login to huggingface hub and get/save the account token for operations that need authentication.
- Re-run this function with username (i.e. `login(username)`) if token expired.
+Validate a [user access token](https://huggingface.co/settings/tokens) and save it to
+ [`get_token_path()`](@ref get_token_path) for operations that need authentication.
+ The file is shared with the Python `huggingface_hub` library, so `hf auth login` works too.
 """
-login(user::AbstractString) = login(maybe_login_prompt(user))
-function login(userpass::LibGit2.UserPasswordCredential = login_prompt())
-    endpoint = get_endpoint()
-    resp, body = withbuf(LoginBuffer(userpass)) do input
-        request_body("$(endpoint)/api/login"; method="POST", input=input,
-                     headers = ["content-type" => "application/json"])
-    end
-
-    if resp.status == 200
-        resp_body = JSON3.read(body)
-        write_cred(userpass)
-        Base.shred!(userpass)
-        token = resp_body.token
-        save_token(token)
-        return token
-    else
-        Base.shred!(userpass)
-        status_error(resp, "$body")
+function login(token::AbstractString)
+    token = ensure_token(clean_token(token))
+    info = whoami(token)
+    save_token(token)
+    @info "Logged in as $(info.name), token saved to $(get_token_path())."
+    return nothing
+end
+function login()
+    secret = Base.getpass("Hugging Face token")
+    try
+        return login(read(secret, String))
+    finally
+        Base.shred!(secret)
     end
 end
 
@@ -52,27 +43,20 @@ function whoami(token = get_token())
     if resp.status >= 400
         status_error(resp, "Invalid user token. Make sure you login or pass a correct token.")
     else
-        return JSON3.read(body)
+        return JSON.parse(body)
     end
 end
 
 """
     logout()
 
-Logout from huggingface hub and remove all authentication cache.
+Remove the token saved by [`login`](@ref).
 """
-function logout(token = get_token())
-    ensure_token(token)
-    username = whoami(token).name
-    erase_cred(username)
-
-    endpoint = get_endpoint()
-    resp = request("$(endpoint)/api/logout"; method="POST", headers = auth_header(token))
-    if resp.status >= 400
-        status_error(resp)
-    else
-        delete_token()
-    end
+function logout()
+    delete_token()
+    isnothing(clean_token(get(ENV, "HF_TOKEN", ""))) ||
+        @warn "The `HF_TOKEN` environment variable is set and will still be used."
+    return nothing
 end
 
 _get_tags(type) = request_with_id_error("$(type)-tags-by-type")
@@ -82,14 +66,14 @@ get_dataset_tags() = _get_tags("datasets")
 function _info(type, repo_id, revision, token = get_token())
     endpoint = get_endpoint()
     url = "$(endpoint)/api/$(type)/$(repo_id)"
-    url = isnothing(revision) ? url : "$(url)/revision/$(revision)"
+    url = isnothing(revision) ? url : "$(url)/revision/$(escape_uri(revision))"
     url = "$(url)?securityStatus=true"
 
     resp, body = request_body(url; method = "GET", headers = auth_header(token))
     if resp.status >= 400
         status_error_w_ecode(resp)
     else
-        return JSON3.read(body)
+        return JSON.parse(body)
     end
 end
 
@@ -136,12 +120,11 @@ for type in (:model, :dataset, :space)
     end
 end
 
-function _list(type, token; kwargs...)
-    isnothing(token) || whoami(token)
+function _list(type, token; limit = nothing, kwargs...)
     headers = auth_header(token)
 
     params = Pair[]
-    for (k, v) in kwargs
+    for (k, v) in pairs((; limit, kwargs...))
         isnothing(v) || if v isa Bool
             v && push!(params, k=>true)
         else
@@ -149,8 +132,18 @@ function _list(type, token; kwargs...)
         end
     end
 
-    api = isempty(params) ? type : "$(type)$(build_query(params))"
-    return request_with_id_error(api, headers)
+    url = "$(get_endpoint())/api/$(type)"
+    isempty(params) || (url *= build_query(params))
+    results = Any[]
+    while true
+        resp, body = request_body(url; method = "GET", headers)
+        resp.status >= 400 && id_error(resp)
+        append!(results, JSON.parse(body))
+        url = next_page(resp)
+        (isnothing(url) || isnothing(limit) || length(results) >= limit) && break
+    end
+    isnothing(limit) || length(results) <= limit || resize!(results, limit)
+    return results
 end
 
 """
@@ -163,9 +156,10 @@ Get information from all models in the Hub. You can specify additional parameter
  - `search`: Filter based on substrings for repos and their usernames, such as resnet or microsoft
  - `author`: Filter models by an author or organization, such as huggingface or microsoft
  - `filter`: Filter based on tags, such as text-classification or spacy.
- - `sort`: Property to use when sorting, such as downloads or author.
- - `direction`: Direction in which to sort, such as -1 for descending, and anything else for ascending.
- - `limit`: Limit the number of models fetched.
+ - `sort`: Property to use when sorting, such as `downloads`, `likes`, `lastModified`, `createdAt` or `trendingScore`.
+ - `direction`: Direction in which to sort. Results are sorted in descending order; the Hub only accepts
+   ascending order (`1`) for `createdAt`.
+ - `limit`: Limit the number of models fetched. Results come in pages of at most 1000; without `limit`, only the first page is returned.
  - `full`: Whether to fetch most model data, such as all tags, the files, etc.
  - `cardData`: Whether to grab the metadata for the model as well, such as carbon emissions, metrics, and datasets trained on.
 """
@@ -187,10 +181,11 @@ end
 Get information from all datasets in the Hub. You can specify additional parameters to have more specific results.
  - `search`: Filter based on substrings for repos and their usernames, such as pets or microsoft
  - `author`: Filter datasets by an other or organization, such as huggingface or microsoft
- - `filter`: Filter based on tags, such as task_categories:text-classification or languages:en.
- - `sort`: Property to use when sorting, such as downloads or author.
- - `direction`: Direction in which to sort, such as -1 for descending, and anything else for ascending.
- - `limit`: Limit the number of datasets fetched.
+ - `filter`: Filter based on tags, such as task_categories:text-classification or language:en.
+ - `sort`: Property to use when sorting, such as `downloads`, `likes`, `lastModified`, `createdAt` or `trendingScore`.
+ - `direction`: Direction in which to sort. Results are sorted in descending order; the Hub only accepts
+   ascending order (`1`) for `createdAt`.
+ - `limit`: Limit the number of datasets fetched. Results come in pages of at most 1000; without `limit`, only the first page is returned.
  - `full`: Whether to fetch most dataset data, such as all tags, the files, etc.
  - `cardData`: Whether to grab the metadata for the dataset as well. Can contain useful information such as the PapersWithCode ID.
 """
@@ -214,10 +209,11 @@ Get information from all Spaces in the Hub. You can specify additional parameter
  - `search`: Filter based on substrings for repos and their usernames, such as resnet or microsoft
  - `author`: Filter models by an author or organization, such as huggingface or microsoft
  - `filter`: Filter based on tags, such as text-classification or spacy.
- - `sort`: Property to use when sorting, such as downloads or author.
- - `direction`: Direction in which to sort, such as -1 for descending, and anything else for ascending.
- - `limit`: Limit the number of models fetched.
- - `full`: Whether to fetch most model data, such as all tags, the files, etc.
+ - `sort`: Property to use when sorting, such as `downloads`, `likes`, `lastModified`, `createdAt` or `trendingScore`.
+ - `direction`: Direction in which to sort. Results are sorted in descending order; the Hub only accepts
+   ascending order (`1`) for `createdAt`.
+ - `limit`: Limit the number of Spaces fetched. Results come in pages of at most 1000; without `limit`, only the first page is returned.
+ - `full`: Whether to fetch most Space data, such as all tags, the files, etc.
  - `datasets`: Whether to return Spaces that make use of a dataset. The name of a specific dataset can be passed as a string.
  - `models`: Whether to return Spaces that make use of a model. The name of a specific model can be passed as a string.
  - `linked`: Whether to return Spaces that make use of either a model or a dataset.

@@ -6,7 +6,7 @@ DocMeta.setdocmeta!(HuggingFaceApi, :DocTestSetup, :(using HuggingFaceApi); recu
 makedocs(;
     modules=[HuggingFaceApi],
     authors="chengchingwen <adgjl5645@hotmail.com> and contributors",
-    repo="https://github.com/FluxML/HuggingFaceApi.jl/blob/{commit}{path}#{line}",
+    repo=Remotes.GitHub("FluxML", "HuggingFaceApi.jl"),
     sitename="HuggingFaceApi.jl",
     format=Documenter.HTML(;
         prettyurls=get(ENV, "CI", "false") == "true",
