@@ -1,33 +1,15 @@
 module HuggingFaceApi
 
-using SHA
-using Pkg
-using Pkg.MiniProgressBars
 using Downloads
-import Dates
-
-using OhMyArtifacts
-
-using JSON3
-
-const my_artifacts = Ref{String}()
-
+using JSON
+using ProgressMeter: Progress, update!, finish!
 
 const DEFAULT_ENDPOINT = "https://huggingface.co"
+const STAGING_ENDPOINT = "https://hub-ci.huggingface.co"
 const ENDPOINT = Ref(DEFAULT_ENDPOINT)
-const token_path = Ref{String}()
 
 const PYTORCH_WEIGHTS_NAME = "pytorch_model.bin"
 const CONFIG_NAME = "config.json"
-
-function hgf_dir()
-    return dirname(hgf_artifacts())
-end
-
-function hgf_artifacts()
-    global my_artifacts
-    return my_artifacts[]
-end
 
 function env_is_true(key)
     e = get(ENV, key, false)
@@ -36,15 +18,15 @@ function env_is_true(key)
     return false
 end
 
+# Empty environment variables are treated as unset.
+function getenv(key, default)
+    value = get(ENV, key, "")
+    return isempty(value) ? default : value
+end
+
 function __init__()
-    global ENDPOINT, my_artifacts, token_path
-    # my artifacts
-    my_artifacts[] = @my_artifacts_toml!()
-
-    token_path[] = expanduser("~/.huggingface/token")
-
-    # set 🤗 endpoint
-    env_is_true("HUGGINGFACE_CO_STAGING") && (ENDPOINT[] = "https://moon-staging.huggingface.co")
+    ENDPOINT[] = rstrip(getenv("HF_ENDPOINT", DEFAULT_ENDPOINT), '/')
+    env_is_true("HUGGINGFACE_CO_STAGING") && (ENDPOINT[] = STAGING_ENDPOINT)
     return
 end
 
@@ -79,10 +61,29 @@ function with_endpoint(f, endpoint)
     end
 end
 
-function get_token_path()
-    global token_path
-    return abspath(token_path[])
-end
+"""
+    hf_home()
+
+Root directory of the Hugging Face files shared with the Python `huggingface_hub` library:
+`\$HF_HOME`, or `\$XDG_CACHE_HOME/huggingface`, or `~/.cache/huggingface`.
+"""
+hf_home() = expanduser(getenv("HF_HOME", joinpath(getenv("XDG_CACHE_HOME", joinpath(homedir(), ".cache")), "huggingface")))
+
+"""
+    hf_hub_cache()
+
+Directory of the download cache: `\$HF_HUB_CACHE`, or `\$(hf_home())/hub`.
+"""
+hf_hub_cache() = expanduser(getenv("HF_HUB_CACHE", getenv("HUGGINGFACE_HUB_CACHE", joinpath(hf_home(), "hub"))))
+
+"""
+    get_token_path()
+
+File where [`login`](@ref) saves the token: `\$HF_TOKEN_PATH`, or `\$(hf_home())/token`.
+"""
+get_token_path() = abspath(expanduser(getenv("HF_TOKEN_PATH", joinpath(hf_home(), "token"))))
+
+offline_mode() = lowercase(getenv("HF_HUB_OFFLINE", get(ENV, "TRANSFORMERS_OFFLINE", ""))) in ("1", "on", "yes", "true")
 
 export hf_hub_download, HuggingFaceURL, cached_download
 
